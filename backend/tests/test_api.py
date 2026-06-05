@@ -97,6 +97,28 @@ async def test_questionnaire_crud_and_contest_creation():
         assert res_c_get.status_code == 200
         assert res_c_get.json()["qrCodeBase64"].startswith("data:image/png;base64,")
 
+        # 4. Create Contest WITHOUT QR URL (should auto-generate)
+        c_payload_no_qr = {
+            "questionnaire_title": "Science Vol. 1",
+            "scheduledStartTime": int(time.time()) + 300,
+            "entryFee": 5
+        }
+        res_c_no_qr = await ac.post("/admin/contests", json=c_payload_no_qr, auth=auth)
+        assert res_c_no_qr.status_code == 201
+        c_id_no_qr = res_c_no_qr.json()["id"]
+
+        # Verify QR URL and image data are automatically generated
+        res_c_no_qr_get = await ac.get(f"/admin/contests/{c_id_no_qr}", auth=auth)
+        assert res_c_no_qr_get.status_code == 200
+        assert res_c_no_qr_get.json()["qr"] == f"http://127.0.0.1:8080/join?contestId={c_id_no_qr}"
+        assert res_c_no_qr_get.json()["qrCodeBase64"].startswith("data:image/png;base64,")
+
+        # 5. Fetch contest QR as JPEG image via Admin API (Basic Auth)
+        res_qr = await ac.get(f"/admin/contests/{c_id_no_qr}/qr", auth=auth)
+        assert res_qr.status_code == 200
+        assert "image/jpeg" in res_qr.headers["content-type"]
+        assert res_qr.content.startswith(b"\xff\xd8")
+
 @pytest.mark.asyncio
 async def test_participant_discover_and_enlist():
     async with AsyncClient(app=app, base_url="http://test") as ac:

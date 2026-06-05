@@ -25,6 +25,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   
   // Game states
   int _questionIndex = 0;
+  int _totalQuestions = 3;
   String _questionId = '';
   String _questionText = '';
   List<dynamic> _options = [];
@@ -33,6 +34,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   
   // Participant state
   int? _selectedIndex;
+  int? _correctIndex;
   bool _hasAnswered = false;
   bool _isCorrect = false;
   double _scoreEarned = 0.0;
@@ -61,6 +63,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
     _wsSubscription?.cancel();
     _bufferTimer?.cancel();
     _timerController?.dispose();
+    widget.wsService.close();
     super.dispose();
   }
 
@@ -85,6 +88,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
 
     setState(() {
       _questionIndex = data['questionIndex'] ?? 0;
+      _totalQuestions = data['totalQuestions'] ?? 3;
       _questionId = data['questionId'] ?? '';
       _questionText = data['questionText'] ?? '';
       _options = data['options'] ?? [];
@@ -92,6 +96,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       _initialScore = data['initialScore'] ?? 1000;
       
       _selectedIndex = null;
+      _correctIndex = null;
       _hasAnswered = false;
       _isCorrect = false;
       _scoreEarned = 0.0;
@@ -134,8 +139,6 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       _hasAnswered = true;
     });
 
-    _timerController?.stop();
-
     try {
       final result = await ApiService.submitAnswer(
         widget.contestId,
@@ -147,6 +150,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       setState(() {
         _isCorrect = result['isCorrect'] ?? false;
         _scoreEarned = (result['score'] as num).toDouble();
+        _correctIndex = result['correctOptionIndex'] as int?;
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,14 +160,21 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   }
 
   void _handleQuestionEnd(Map<String, dynamic> data) {
-    _timerController?.stop();
+    _timerController?.dispose();
     
     setState(() {
       _inBuffer = true;
       _correctOptionIndex = data['correctOptionIndex'] ?? 0;
+      _correctIndex = _correctOptionIndex;
       _midLeaderboard = data['leaderboard'] ?? [];
       _bufferSecondsLeft = 5; 
     });
+
+    _timerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
+    _timerController!.forward(from: 0.0);
 
     _bufferTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -190,12 +201,21 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
     );
   }
 
+  int getSecondsToNextQuestion() {
+    if (_inBuffer) {
+      return _bufferSecondsLeft;
+    }
+    if (_questionStartTime == null) {
+      return _timeLimit + 5;
+    }
+    final elapsed = DateTime.now().difference(_questionStartTime!).inSeconds;
+    final remaining = (_timeLimit + 5) - elapsed;
+    return remaining > 0 ? remaining : 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final progress = _timerController != null 
-        ? 1.0 - _timerController!.value 
-        : 1.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -205,86 +225,201 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Center(
-              child: Text(
-                'Worth: $_initialScore pts',
-                style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold),
-              ),
+              child: _timerController != null
+                  ? AnimatedBuilder(
+                      animation: _timerController!,
+                      builder: (context, child) {
+                        double currentWorth;
+                        if (_inBuffer) {
+                          currentWorth = _scoreEarned;
+                        } else if (_hasAnswered) {
+                          if (_correctIndex != null) {
+                            currentWorth = _scoreEarned;
+                          } else {
+                            currentWorth = _initialScore * (1.0 - _timerController!.value);
+                          }
+                        } else if (_isTimeout) {
+                          currentWorth = 0.0;
+                        } else {
+                          currentWorth = _initialScore * (1.0 - _timerController!.value);
+                        }
+
+                        return Text(
+                          _inBuffer
+                              ? (_isCorrect ? '+${_scoreEarned.toStringAsFixed(0)} pts' : '0 pts')
+                              : 'Worth: ${currentWorth.toStringAsFixed(0)} pts',
+                          style: TextStyle(
+                            color: _inBuffer || _hasAnswered
+                                ? (_isCorrect ? Colors.green : theme.colorScheme.error)
+                                : theme.colorScheme.secondary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        );
+                      },
+                    )
+                  : Text(
+                      'Worth: $_initialScore pts',
+                      style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Live Progress Timer Bar
-                if (_timerController != null && !_inBuffer)
-                  AnimatedBuilder(
-                    animation: _timerController!,
-                    builder: (context, child) {
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: 1.0 - _timerController!.value,
-                          backgroundColor: Colors.white10,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            (1.0 - _timerController!.value) < 0.25 
-                                ? theme.colorScheme.error 
-                                : theme.colorScheme.primary,
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Live Progress Timer Bar / Next Question / Final Results text countdown
+                    if (_inBuffer)
+                      Container(
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          '${_questionIndex == _totalQuestions - 1 ? "FINAL RESULTS" : "NEXT QUESTION"} IN $_bufferSecondsLeft...',
+                          style: TextStyle(
+                            color: theme.colorScheme.secondary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
                           ),
-                          minHeight: 8,
                         ),
-                      );
-                    },
-                  ),
-                const SizedBox(height: 32),
-                
-                // Question Text
-                Text(
-                  _questionText,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-                
-                // Options Grid
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _options.length,
-                    itemBuilder: (ctx, index) {
-                      final optionText = _options[index];
+                      )
+                    else if (_timerController != null)
+                      AnimatedBuilder(
+                        animation: _timerController!,
+                        builder: (context, child) {
+                          if (_hasAnswered) {
+                            final secondsLeft = getSecondsToNextQuestion();
+                            final isFinalQuestion = _questionIndex == _totalQuestions - 1;
+                            return Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                '${isFinalQuestion ? "FINAL RESULTS" : "NEXT QUESTION"} IN $secondsLeft...',
+                                style: TextStyle(
+                                  color: theme.colorScheme.secondary,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final double val = 1.0 - _timerController!.value;
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: val,
+                              backgroundColor: Colors.white10,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                val < 0.25 
+                                    ? theme.colorScheme.error 
+                                    : theme.colorScheme.primary,
+                              ),
+                              minHeight: 8,
+                            ),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 16),
+                    
+                    // Correctness banner / status
+                    if (_isTimeout || _correctIndex != null || _inBuffer) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _isCorrect ? Icons.check_circle_outline_rounded : (_isTimeout ? Icons.alarm_off : Icons.highlight_off_rounded),
+                            color: _isCorrect ? Colors.green : (_isTimeout ? Colors.orange : theme.colorScheme.error),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _isCorrect 
+                                ? 'CORRECT! +${_scoreEarned.toStringAsFixed(0)} pts' 
+                                : (_isTimeout ? 'TIME OUT!' : 'INCORRECT!'),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _isCorrect ? Colors.green : (_isTimeout ? Colors.orange : theme.colorScheme.error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    // Standings snapshot
+                    if (_inBuffer) ...[
+                      const SizedBox(height: 16),
+                      _buildStandingsSnapshot(theme),
+                    ],
+
+                    // Spacer to push the question and answers to the bottom of the screen
+                    const Spacer(),
+                    
+                    // Question Text
+                    Text(
+                      _questionText,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, height: 1.4),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Options Grid (Suggested Answers)
+                    ..._options.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final optionText = entry.value;
                       
                       // Compute option background colors based on states
-                      Color buttonColor = theme.cardTheme.color!;
+                      Color buttonColor = theme.cardTheme.color ?? theme.cardColor;
                       Color borderColor = const Color(0xFF2C2254);
                       
                       if (_hasAnswered) {
-                        if (index == _selectedIndex) {
-                          if (_isCorrect) {
-                            buttonColor = Colors.green.withOpacity(0.15);
-                            borderColor = Colors.green;
-                          } else if (!_isTimeout) {
-                            buttonColor = theme.colorScheme.error.withOpacity(0.15);
-                            borderColor = theme.colorScheme.error;
+                        final isSelected = index == _selectedIndex;
+                        final isPending = _correctIndex == null && !_isTimeout;
+
+                        if (isSelected) {
+                          if (isPending) {
+                            buttonColor = theme.colorScheme.primary.withOpacity(0.15);
+                            borderColor = theme.colorScheme.primary;
+                          } else {
+                            if (_isCorrect) {
+                              buttonColor = Colors.green.withOpacity(0.15);
+                              borderColor = Colors.green;
+                            } else {
+                              buttonColor = theme.colorScheme.error.withOpacity(0.15);
+                              borderColor = theme.colorScheme.error;
+                            }
                           }
                         }
                         
-                        if (_inBuffer && index == _correctOptionIndex) {
-                          buttonColor = Colors.green.withOpacity(0.2);
-                          borderColor = Colors.green;
+                        if (!isPending) {
+                          final isThisOptionCorrect = index == _correctIndex || (_inBuffer && index == _correctOptionIndex);
+                          if (isThisOptionCorrect) {
+                            if (!_isCorrect) {
+                              buttonColor = Colors.green.withOpacity(0.20);
+                              borderColor = Colors.green;
+                            }
+                          }
                         }
                       }
 
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
+                        padding: const EdgeInsets.only(bottom: 12.0),
                         child: InkWell(
                           onTap: _hasAnswered ? null : () => _submitAnswer(index),
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                             decoration: BoxDecoration(
                               color: buttonColor,
                               borderRadius: BorderRadius.circular(12),
@@ -307,7 +442,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                   ),
                                 ),
-                                if (_hasAnswered && index == _selectedIndex) ...[
+                                if (_hasAnswered && index == _selectedIndex && _correctIndex != null) ...[
                                   if (_isCorrect)
                                     const Icon(Icons.check_circle, color: Colors.green)
                                   else if (!_isTimeout)
@@ -318,95 +453,54 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                           ),
                         ),
                       );
-                    },
-                  ),
+                    }),
+                    const SizedBox(height: 32), // Extra bottom spacing to avoid overlays / cuts
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-          
-          // Faded Buffer Overlay (Next question countdown & stand summary)
-          if (_inBuffer) _buildBufferOverlay(theme),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBufferOverlay(ThemeData theme) {
-    // Show top 3 in leaderboard
+  Widget _buildStandingsSnapshot(ThemeData theme) {
     final topStandings = _midLeaderboard.take(3).toList();
-
-    return Container(
-      color: Colors.black.withOpacity(0.85),
-      padding: const EdgeInsets.all(28.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Icon(
-            _isCorrect ? Icons.check_circle_outline_rounded : Icons.highlight_off_rounded,
-            size: 80,
-            color: _isCorrect ? Colors.green : theme.colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _isCorrect ? 'CORRECT!' : _isTimeout ? 'TIME OUT!' : 'INCORRECT!',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: _isCorrect ? Colors.green : theme.colorScheme.error,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Divider(color: Colors.white10, height: 24),
+        const Text(
+          'STANDINGS SNAPSHOT',
+          style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        ...topStandings.map((entry) {
+          final isMe = entry['username'] == ApiService.username;
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: isMe ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: isMe ? theme.colorScheme.primary.withOpacity(0.5) : Colors.white10),
             ),
-            textAlign: TextAlign.center,
-          ),
-          if (_isCorrect) ...[
-            const SizedBox(height: 8),
-            Text(
-              '+${_scoreEarned.toStringAsFixed(0)} Points',
-              style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '#${entry['rank']} ${entry['username']}',
+                  style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal),
+                ),
+                Text('${entry['score']} pts', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
             ),
-          ],
-          const SizedBox(height: 48),
-          
-          const Text(
-            'STANDINGS SNAPSHOT',
-            style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          
-          ...topStandings.map((entry) {
-            final isMe = entry['username'] == ApiService.username;
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: isMe ? Colors.white.withOpacity(0.08) : Colors.white.withOpacity(0.02),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isMe ? theme.colorScheme.primary.withOpacity(0.5) : Colors.white10),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '#${entry['rank']} ${entry['username']}',
-                    style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal),
-                  ),
-                  Text('${entry['score']} pts', style: const TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-            );
-          }),
-          
-          const Spacer(),
-          Text(
-            'Next question in $_bufferSecondsLeft...',
-            style: TextStyle(color: theme.colorScheme.primary, fontSize: 16, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
 }

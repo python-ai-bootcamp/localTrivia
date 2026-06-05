@@ -1,0 +1,24 @@
+{
+  "title": "Community General Trivia Vol. 1",
+  "interQuestionBufferSeconds": 5,
+  "questions": [
+    {
+      "questionText": "Which gas is most abundant in the Earth's atmosphere?",
+      "options": ["Nitrogen", "Oxygen", "Carbon Dioxide", "Hydrogen"],
+      "timeLimitSeconds": 15,
+      "initialScore": 1000
+    },
+    {
+      "questionText": "Which planet in our solar system is known as the Red Planet?",
+      "options": ["Mars", "Venus", "Jupiter", "Saturn"],
+      "timeLimitSeconds": 12,
+      "initialScore": 1000
+    },
+    {
+      "questionText": "How many bones are there in an adult human body?",
+      "options": ["206", "208", "196", "212"],
+      "timeLimitSeconds": 15,
+      "initialScore": 1000
+    }
+  ]
+}

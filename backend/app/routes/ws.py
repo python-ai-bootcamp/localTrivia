@@ -13,6 +13,7 @@ async def websocket_endpoint(
     token: str = Query(...),
     contestId: str = Query(...)
 ):
+    print(f"[WS] Connection request from token={token}, contestId={contestId}")
     await websocket.accept()
     
     db = get_db()
@@ -20,21 +21,25 @@ async def websocket_endpoint(
     # 1. Validate deviceToken
     user = await db.users.find_one({"deviceToken": token})
     if not user:
+        print("[WS] Close: Invalid device token")
         await websocket.close(code=4001, reason="Invalid device token")
         return
 
     # 2. Validate contestId
     if not ObjectId.is_valid(contestId):
+        print("[WS] Close: Invalid contest ID")
         await websocket.close(code=4002, reason="Invalid contest ID")
         return
 
     contest = await db.contests.find_one({"_id": ObjectId(contestId)})
     if not contest:
+        print("[WS] Close: Contest not found")
         await websocket.close(code=4003, reason="Contest not found")
         return
 
     # 3. Check if user is enlisted contender
     if user["_id"] not in contest.get("contenders", []):
+        print(f"[WS] Close: User {user.get('username', 'Unknown')} is not enlisted in contest {contestId}")
         await websocket.close(code=4004, reason="User is not enlisted in this contest")
         return
 
@@ -43,10 +48,12 @@ async def websocket_endpoint(
 
     # Register connection in game coordinator
     await coordinator.register_connection(contestId, websocket)
+    print(f"[WS] User {user.get('username', 'Unknown')} registered successfully")
 
     try:
         while True:
             data = await websocket.receive_text()
+            print(f"[WS] Message received from {user.get('username', 'Unknown')}: {data}")
             try:
                 msg = json.loads(data)
                 event = msg.get("event")
@@ -82,9 +89,12 @@ async def websocket_endpoint(
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:
-        pass
+        print(f"[WS] Disconnected: {user.get('username', 'Unknown')}")
+    except Exception as e:
+        print(f"[WS] Exception for {user.get('username', 'Unknown')}: {e}")
     finally:
         await coordinator.unregister_connection(contestId, websocket)
+        print(f"[WS] User {user.get('username', 'Unknown')} unregistered")
 
 async def process_websocket_submission(
     contestId: str,
@@ -129,6 +139,12 @@ async def process_websocket_submission(
     correct_text = question["options"][0]
     is_correct = (selected_text == correct_text)
 
+    correct_option_index = 0
+    try:
+        correct_option_index = shuffle["shuffledOptions"].index(correct_text)
+    except ValueError:
+        pass
+
     score = 0.0
     if is_correct:
         time_limit = question["timeLimitSeconds"]
@@ -147,4 +163,8 @@ async def process_websocket_submission(
         "submittedAt": datetime.datetime.utcnow()
     }
     await db.submissions.insert_one(doc)
-    return {"isCorrect": is_correct, "score": score}
+    return {
+        "isCorrect": is_correct,
+        "score": score,
+        "correctOptionIndex": correct_option_index
+    }

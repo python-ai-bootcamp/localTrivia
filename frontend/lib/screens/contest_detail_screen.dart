@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'lobby_screen.dart';
+import 'onboarding_screen.dart';
 
 class ContestDetailScreen extends StatefulWidget {
   final String contestId;
@@ -45,6 +46,16 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
       });
       _startCountdown();
     } catch (e) {
+      if (e.toString() == 'unauthorized') {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
       setState(() {
         _errorMessage = e.toString();
       });
@@ -100,6 +111,16 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
       );
       _fetchDetails();
     } catch (e) {
+      if (e.toString() == 'unauthorized') {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to register: $e'),
@@ -264,7 +285,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                     MaterialPageRoute(
                       builder: (_) => LobbyScreen(contestId: widget.contestId),
                     ),
-                  );
+                  ).then((_) {
+                    if (mounted) _fetchDetails();
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 18),
@@ -284,7 +307,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                     MaterialPageRoute(
                       builder: (_) => LobbyScreen(contestId: widget.contestId),
                     ),
-                  );
+                  ).then((_) {
+                    if (mounted) _fetchDetails();
+                  });
                 },
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 18),

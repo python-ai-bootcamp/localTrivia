@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Use 10.0.2.2 for Android emulator loopback, localhost for iOS simulator
-  static const String baseUrl = 'http://10.0.2.2:8080'; 
+  static const String baseUrl = kReleaseMode
+      ? 'https://trivia.local'
+      : 'http://127.0.0.1:8080'; 
   static const _storage = FlutterSecureStorage();
 
   static String _token = '';
@@ -126,6 +129,8 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['contestId'];
+    } else if (response.statusCode == 401) {
+      throw 'unauthorized';
     } else {
       final error = jsonDecode(response.body);
       throw error['detail'] ?? 'Failed to add contest';
@@ -138,6 +143,8 @@ class ApiService {
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      throw 'unauthorized';
     } else {
       throw 'Failed to load contests';
     }
@@ -149,6 +156,8 @@ class ApiService {
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      throw 'unauthorized';
     } else {
       throw 'Failed to load contest details';
     }
@@ -161,6 +170,8 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return (data['prizePool'] as num).toDouble();
+    } else if (response.statusCode == 401) {
+      throw 'unauthorized';
     } else {
       final error = jsonDecode(response.body);
       throw error['detail'] ?? 'Failed to enlist in contest';
@@ -186,6 +197,8 @@ class ApiService {
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      throw 'unauthorized';
     } else {
       final error = jsonDecode(response.body);
       throw error['detail'] ?? 'Failed to submit answer';

@@ -11,12 +11,15 @@ services:
       - MONGO_URI=mongodb://db:27017/local_trivia
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=trivia_admin_secret_123
+      - BASE_URL=http://127.0.0.1:8080
     depends_on:
       - db
     restart: always
 
   db:
     image: mongo:latest
+    ports:
+      - "27017:27017"
     volumes:
       - mongo_data:/data/db
     restart: always

@@ -77,6 +77,7 @@ class GameCoordinator:
                         "event": "QUESTION_START",
                         "data": {
                             "questionIndex": i,
+                            "totalQuestions": len(questions),
                             "questionId": str(q["_id"]),
                             "questionText": q["questionText"],
                             "options": options,
@@ -153,131 +154,140 @@ class GameCoordinator:
         return leaderboard
 
     async def run_game_loop(self, contest_id: str):
-        db = get_db()
-        contest = await db.contests.find_one({"_id": ObjectId(contest_id)})
-        if not contest:
-            return
+        try:
+            db = get_db()
+            contest = await db.contests.find_one({"_id": ObjectId(contest_id)})
+            if not contest:
+                return
 
-        questionnaire = await db.questionnaires.find_one({"title": contest["questionnaireTitle"]})
-        if not questionnaire:
-            return
+            questionnaire = await db.questionnaires.find_one({"title": contest["questionnaireTitle"]})
+            if not questionnaire:
+                return
 
-        questions = questionnaire["questions"]
-        buffer = questionnaire.get("interQuestionBufferSeconds", 5)
+            questions = questionnaire["questions"]
+            buffer = questionnaire.get("interQuestionBufferSeconds", 5)
 
-        # Generate options shuffles per question for this contest if they don't exist yet
-        if not contest.get("questionShuffles"):
-            shuffles = []
-            for q in questions:
-                shuffled_opts = list(q["options"])
-                random.shuffle(shuffled_opts)
-                shuffles.append({
-                    "questionId": ObjectId(q["_id"]),
-                    "shuffledOptions": shuffled_opts
+            # Generate options shuffles per question for this contest if they don't exist yet
+            # Generate options shuffles per question for this contest if they don't exist yet
+            if not contest.get("questionShuffles"):
+                shuffles = []
+                for q in questions:
+                    shuffled_opts = list(q["options"])
+                    random.shuffle(shuffled_opts)
+                    shuffles.append({
+                        "questionId": ObjectId(q["_id"]),
+                        "shuffledOptions": shuffled_opts
+                    })
+                await db.contests.update_one(
+                    {"_id": ObjectId(contest_id)},
+                    {
+                        "$set": {
+                            "status": ContestStatus.ACTIVE,
+                            "questionShuffles": shuffles
+                        }
+                    }
+                )
+                contest = await db.contests.find_one({"_id": ObjectId(contest_id)})
+
+            # Broadcast CONTEST_STARTED event
+            await self.broadcast(contest_id, {
+                "event": "CONTEST_STARTED",
+                "data": {"contestId": contest_id}
+            })
+
+            start_time = contest["scheduledStartTime"]
+
+            for i, q in enumerate(questions):
+                q_limit = q["timeLimitSeconds"]
+                shuffle = next((s for s in contest["questionShuffles"] if str(s["questionId"]) == str(q["_id"])), None)
+                options = shuffle["shuffledOptions"] if shuffle else q["options"]
+
+                q_start_target = start_time + sum(questions[j]["timeLimitSeconds"] + buffer for j in range(i))
+                
+                # Wait for starting time
+                now = time.time()
+                if q_start_target > now:
+                    await asyncio.sleep(q_start_target - now)
+
+                # Update current active index in database
+                await db.contests.update_one(
+                    {"_id": ObjectId(contest_id)},
+                    {"$set": {"currentQuestionIndex": i}}
+                )
+
+                # Send QUESTION_START
+                now = time.time()
+                q_end_target = q_start_target + q_limit
+                remaining = int(q_end_target - now)
+
+                if remaining > 0:
+                    await self.broadcast(contest_id, {
+                        "event": "QUESTION_START",
+                        "data": {
+                            "questionIndex": i,
+                            "totalQuestions": len(questions),
+                            "questionId": str(q["_id"]),
+                            "questionText": q["questionText"],
+                            "options": options,
+                            "timeLimitSeconds": remaining,
+                            "initialScore": q["initialScore"]
+                        }
+                    })
+                    await asyncio.sleep(remaining)
+
+                # QUESTION_END event with current standings
+                leaderboard = await self.get_leaderboard_data(contest_id, contest)
+                correct_idx = 0
+                if shuffle:
+                    correct_text = q["options"][0]
+                    try:
+                        correct_idx = shuffle["shuffledOptions"].index(correct_text)
+                    except ValueError:
+                        pass
+
+                await self.broadcast(contest_id, {
+                    "event": "QUESTION_END",
+                    "data": {
+                        "questionIndex": i,
+                        "questionId": str(q["_id"]),
+                        "correctOptionIndex": correct_idx,
+                        "leaderboard": leaderboard
+                    }
                 })
+
+                # Wait buffer pause
+                now = time.time()
+                next_start_target = q_end_target + buffer
+                if next_start_target > now:
+                    await asyncio.sleep(next_start_target - now)
+
+            # End Contest
+            leaderboard = await self.get_leaderboard_data(contest_id, contest)
+            total_contenders = len(contest.get("contenders", []))
+
+            # Persist final leaderboard results
             await db.contests.update_one(
                 {"_id": ObjectId(contest_id)},
                 {
                     "$set": {
-                        "status": ContestStatus.ACTIVE,
-                        "questionShuffles": shuffles
+                        "status": ContestStatus.COMPLETED,
+                        "finalLeaderboard": leaderboard
                     }
                 }
             )
-            contest = await db.contests.find_one({"_id": ObjectId(contest_id)})
 
-        # Broadcast CONTEST_STARTED event
-        await self.broadcast(contest_id, {
-            "event": "CONTEST_STARTED",
-            "data": {"contestId": contest_id}
-        })
+            # Broadcast CONTEST_ENDED with personalized user ranking
+            await self.send_contest_ended(contest_id, leaderboard, total_contenders)
 
-        start_time = contest["scheduledStartTime"]
-
-        for i, q in enumerate(questions):
-            q_limit = q["timeLimitSeconds"]
-            shuffle = next((s for s in contest["questionShuffles"] if str(s["questionId"]) == str(q["_id"])), None)
-            options = shuffle["shuffledOptions"] if shuffle else q["options"]
-
-            q_start_target = start_time + sum(questions[j]["timeLimitSeconds"] + buffer for j in range(i))
-            
-            # Wait for starting time
-            now = time.time()
-            if q_start_target > now:
-                await asyncio.sleep(q_start_target - now)
-
-            # Update current active index in database
-            await db.contests.update_one(
-                {"_id": ObjectId(contest_id)},
-                {"$set": {"currentQuestionIndex": i}}
-            )
-
-            # Send QUESTION_START
-            now = time.time()
-            q_end_target = q_start_target + q_limit
-            remaining = int(q_end_target - now)
-
-            if remaining > 0:
-                await self.broadcast(contest_id, {
-                    "event": "QUESTION_START",
-                    "data": {
-                        "questionIndex": i,
-                        "questionId": str(q["_id"]),
-                        "questionText": q["questionText"],
-                        "options": options,
-                        "timeLimitSeconds": remaining,
-                        "initialScore": q["initialScore"]
-                    }
-                })
-                await asyncio.sleep(remaining)
-
-            # QUESTION_END event with current standings
-            leaderboard = await self.get_leaderboard_data(contest_id, contest)
-            correct_idx = 0
-            if shuffle:
-                correct_text = q["options"][0]
-                try:
-                    correct_idx = shuffle["shuffledOptions"].index(correct_text)
-                except ValueError:
-                    pass
-
-            await self.broadcast(contest_id, {
-                "event": "QUESTION_END",
-                "data": {
-                    "questionIndex": i,
-                    "questionId": str(q["_id"]),
-                    "correctOptionIndex": correct_idx,
-                    "leaderboard": leaderboard
-                }
-            })
-
-            # Wait buffer pause
-            now = time.time()
-            next_start_target = q_end_target + buffer
-            if next_start_target > now:
-                await asyncio.sleep(next_start_target - now)
-
-        # End Contest
-        leaderboard = await self.get_leaderboard_data(contest_id, contest)
-        total_contenders = len(contest.get("contenders", []))
-
-        # Persist final leaderboard results
-        await db.contests.update_one(
-            {"_id": ObjectId(contest_id)},
-            {
-                "$set": {
-                    "status": ContestStatus.COMPLETED,
-                    "finalLeaderboard": leaderboard
-                }
-            }
-        )
-
-        # Broadcast CONTEST_ENDED with personalized user ranking
-        await self.send_contest_ended(contest_id, leaderboard, total_contenders)
-
-        # Remove running task from coordinator
-        if contest_id in self.running_tasks:
-            del self.running_tasks[contest_id]
+            # Remove running task from coordinator
+            if contest_id in self.running_tasks:
+                del self.running_tasks[contest_id]
+        except Exception as e:
+            import traceback
+            print(f"CRITICAL ERROR in run_game_loop for contest {contest_id}: {e}")
+            traceback.print_exc()
+            if contest_id in self.running_tasks:
+                del self.running_tasks[contest_id]
 
     async def send_contest_ended(self, contest_id: str, leaderboard: list, total_contenders: int):
         if contest_id not in self.rooms:

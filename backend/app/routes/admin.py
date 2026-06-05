@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import secrets
-from app.config import ADMIN_USERNAME, ADMIN_PASSWORD
+from app.config import ADMIN_USERNAME, ADMIN_PASSWORD, BASE_URL
 from app.database import get_db
 from app.models import QuestionnaireCreate, ContestCreate, ContestStatus
 from bson import ObjectId
@@ -149,14 +149,20 @@ async def create_contest(payload: ContestCreate):
     if not questionnaire:
         raise HTTPException(status_code=400, detail="Linked questionnaire does not exist")
 
+    # Generate contest ID and QR URL
+    contest_id = ObjectId()
+    qr_url = payload.qr
+    if not qr_url:
+        qr_url = f"{BASE_URL}/join?contestId={contest_id}"
+
     # Validate unique QR url
-    exists = await db.contests.find_one({"qr": payload.qr})
+    exists = await db.contests.find_one({"qr": qr_url})
     if exists:
         raise HTTPException(status_code=409, detail="A contest with this QR code URL already exists")
 
     # Generate QR Code image (base64 PNG)
     try:
-        qr_img = qrcode.make(payload.qr)
+        qr_img = qrcode.make(qr_url)
         buffered = io.BytesIO()
         qr_img.save(buffered, format="PNG")
         qr_base64 = "data:image/png;base64," + base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -164,13 +170,14 @@ async def create_contest(payload: ContestCreate):
         raise HTTPException(status_code=500, detail=f"Failed to generate QR code image: {e}")
 
     doc = {
+        "_id": contest_id,
         "questionnaireTitle": payload.questionnaire_title,
         "scheduledStartTime": payload.scheduledStartTime,
         "status": ContestStatus.SCHEDULED,
         "contenders": [],
         "entryFee": payload.entryFee,
         "prizePool": 0.00,
-        "qr": payload.qr,
+        "qr": qr_url,
         "qrCodeBase64": qr_base64,
         "currentQuestionIndex": -1,
         "questionShuffles": [],
@@ -208,3 +215,38 @@ async def get_contest(id: str):
     for s in doc.get("questionShuffles", []):
         s["questionId"] = str(s["questionId"])
     return doc
+
+@router.get("/contests/{id}/qr", dependencies=[Depends(authenticate_admin)])
+async def get_contest_qr_image(id: str):
+    db = get_db()
+    if not ObjectId.is_valid(id):
+        raise HTTPException(status_code=400, detail="Invalid contest ID")
+
+    contest = await db.contests.find_one({"_id": ObjectId(id)})
+    if not contest:
+        raise HTTPException(status_code=404, detail="Contest not found")
+
+    base64_data = contest.get("qrCodeBase64")
+    if not base64_data:
+        raise HTTPException(status_code=404, detail="QR code not generated for this contest")
+
+    try:
+        if "," in base64_data:
+            header, base64_str = base64_data.split(",", 1)
+        else:
+            base64_str = base64_data
+            
+        png_bytes = base64.b64decode(base64_str)
+
+        # Convert to JPEG using Pillow
+        from PIL import Image
+        image = Image.open(io.BytesIO(png_bytes))
+        rgb_image = image.convert("RGB")
+        
+        buffered = io.BytesIO()
+        rgb_image.save(buffered, format="JPEG")
+        jpeg_bytes = buffered.getvalue()
+
+        return Response(content=jpeg_bytes, media_type="image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process QR image: {e}")

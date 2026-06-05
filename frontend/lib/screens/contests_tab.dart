@@ -6,6 +6,7 @@ import 'contest_detail_screen.dart';
 import 'profile_screen.dart';
 import 'question_screen.dart'; // To handle LIVE taps if user wants to re-enter
 import 'lobby_screen.dart';
+import 'onboarding_screen.dart';
 
 class ContestsTab extends StatefulWidget {
   const ContestsTab({super.key});
@@ -31,7 +32,7 @@ class _ContestsTabState extends State<ContestsTab> {
       final data = await Clipboard.getData(Clipboard.kTextPlain);
       if (data?.text?.startsWith('TRIVIA:') == true) {
         final contestId = data!.text!.substring(7).trim();
-        final qrUrl = 'https://trivia.local/join?contestId=$contestId';
+        final qrUrl = '${ApiService.baseUrl}/join?contestId=$contestId';
 
         await ApiService.addContest(qrUrl);
         await Clipboard.setData(const ClipboardData(text: ''));
@@ -47,7 +48,15 @@ class _ContestsTabState extends State<ContestsTab> {
         _fetchContests();
       }
     } catch (e) {
-      // Quietly ignore clipboard access errors
+      if (e.toString() == 'unauthorized') {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        }
+      }
     }
   }
 
@@ -63,6 +72,16 @@ class _ContestsTabState extends State<ContestsTab> {
         _contests = list;
       });
     } catch (e) {
+      if (e.toString() == 'unauthorized') {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
       setState(() {
         _errorMessage = e.toString();
       });
@@ -74,6 +93,7 @@ class _ContestsTabState extends State<ContestsTab> {
   }
 
   void _openScanner() {
+    bool isScanned = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -93,9 +113,11 @@ class _ContestsTabState extends State<ContestsTab> {
             Expanded(
               child: MobileScanner(
                 onDetect: (capture) async {
+                  if (isScanned) return;
                   final List<Barcode> barcodes = capture.barcodes;
                   for (final barcode in barcodes) {
                     if (barcode.rawValue != null) {
+                      isScanned = true;
                       final qrUrl = barcode.rawValue!;
                       Navigator.pop(ctx);
                       
@@ -105,14 +127,26 @@ class _ContestsTabState extends State<ContestsTab> {
                       
                       try {
                         await ApiService.addContest(qrUrl);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Contest added successfully!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Contest added successfully!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
                         _fetchContests();
                       } catch (e) {
+                        if (e.toString() == 'unauthorized') {
+                          await ApiService.logout();
+                          if (mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                              (route) => false,
+                            );
+                          }
+                          return;
+                        }
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Failed to add contest: $e'),
@@ -234,7 +268,7 @@ class _ContestsTabState extends State<ContestsTab> {
                           final fee = contest['entryFee'];
 
                           return Card(
-                            margin: const EdgeInsets.bottom(16.0),
+                            margin: const EdgeInsets.only(bottom: 16.0),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(16),
                               onTap: () {
@@ -278,7 +312,7 @@ class _ContestsTabState extends State<ContestsTab> {
                                           decoration: BoxDecoration(
                                             color: _getStatusColor(status).withOpacity(0.15),
                                             borderRadius: BorderRadius.circular(6),
-                                            border: Border.solid(color: _getStatusColor(status), width: 1),
+                                            border: Border.all(color: _getStatusColor(status), width: 1),
                                           ),
                                           child: Text(
                                             _getStatusLabel(status),

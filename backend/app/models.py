@@ -69,7 +69,7 @@ class ContestCreate(BaseModel):
     questionnaire_title: str
     scheduledStartTime: int  # Epoch seconds
     entryFee: int
-    qr: str  # Full URL
+    qr: Optional[str] = None
 
 class QuestionShuffle(BaseModel):
     questionId: PyObjectId

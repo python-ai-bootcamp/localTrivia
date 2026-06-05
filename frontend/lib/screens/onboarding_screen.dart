@@ -92,7 +92,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     letterSpacing: 2,
                     color: Colors.white,
                   ),
-                  textAlign: Center,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -100,7 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ? 'Enter your recovery key key to import your profile'
                       : 'Join real-time local trivia contests with your neighborhood',
                   style: const TextStyle(color: Colors.white54, fontSize: 15),
-                  textAlign: Center,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 40),
                 

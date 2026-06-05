@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, Depends, HTTPException, status
+from fastapi import APIRouter, Header, Depends, HTTPException, status, Response
 from fastapi.responses import HTMLResponse
 from app.database import get_db
 from app.models import UserRegisterRequest, SubmissionRequest, ContestStatus
@@ -6,6 +6,9 @@ from bson import ObjectId
 from datetime import datetime
 from typing import Optional
 import time
+import base64
+import io
+from PIL import Image
 
 router = APIRouter(tags=["participants"])
 
@@ -236,6 +239,12 @@ async def submit_answer(contestId: str, payload: SubmissionRequest, current_user
     correct_text = question["options"][0]
     is_correct = (selected_text == correct_text)
 
+    correct_option_index = 0
+    try:
+        correct_option_index = shuffle["shuffledOptions"].index(correct_text)
+    except ValueError:
+        pass
+
     score = 0.0
     if is_correct:
         time_limit = question["timeLimitSeconds"]
@@ -257,7 +266,11 @@ async def submit_answer(contestId: str, payload: SubmissionRequest, current_user
     }
 
     await db.submissions.insert_one(doc)
-    return {"isCorrect": is_correct, "score": score}
+    return {
+        "isCorrect": is_correct,
+        "score": score,
+        "correctOptionIndex": correct_option_index
+    }
 
 # --- Onboarding Landing Page ---
 

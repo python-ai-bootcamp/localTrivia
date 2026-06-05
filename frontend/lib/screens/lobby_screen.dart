@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import 'question_screen.dart';
+import 'onboarding_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
   final String contestId;
@@ -20,6 +21,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
   Map<String, dynamic>? _contestDetails;
+  bool _navigatingToGame = false;
   
   // Countdown details
   Timer? _lobbyTimer;
@@ -35,9 +37,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void dispose() {
     _lobbyTimer?.cancel();
     _wsSubscription?.cancel();
-    // Do not close _wsService here if navigating to QuestionScreen,
-    // we pass ownership to the QuestionScreen. But if we leave the Lobby, we close it.
-    if (mounted) {
+    if (!_navigatingToGame) {
       _wsService?.close();
     }
     super.dispose();
@@ -68,10 +68,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
       
       _wsSubscription = _wsService!.events.listen((msg) {
         final event = msg['event'];
-        final data = msg['data'];
         
         if (event == 'CONTEST_STARTED' || event == 'QUESTION_START') {
           _wsSubscription?.cancel(); // Yield control of events to QuestionScreen
+          _navigatingToGame = true;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (_) => QuestionScreen(
@@ -94,6 +94,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (e.toString() == 'unauthorized') {
+        await ApiService.logout();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        }
+        return;
+      }
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -244,134 +254,144 @@ class _LobbyScreenState extends State<LobbyScreen> {
       orElse: () => null,
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Contest Standings'),
-        automaticallyImplyLeading: false,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Top Badge own rank
-            if (myEntry != null) ...[
-              Card(
-                color: theme.colorScheme.primary.withOpacity(0.12),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.emoji_events_outlined, color: theme.colorScheme.primary, size: 36),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Contest Standings'),
+          automaticallyImplyLeading: false,
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Top Badge own rank
+                if (myEntry != null) ...[
+                  Card(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.emoji_events_outlined, color: theme.colorScheme.primary, size: 36),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Congratulations, $myUsername!',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'You placed #${myEntry['rank']} out of $contendersCount players',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${myEntry['score']} pts',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+                
+                const Text(
+                  'LEADERBOARD STANDINGS',
+                  style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                ),
+                const SizedBox(height: 10),
+                
+                // Leaderboard list
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: leaderboard.length,
+                    itemBuilder: (ctx, index) {
+                      final entry = leaderboard[index];
+                      final isMe = entry['username'] == myUsername;
+                      final rank = entry['rank'];
+                      
+                      // Highlight top 3
+                      Color rankColor = Colors.white54;
+                      if (rank == 1) rankColor = const Color(0xFFFFD700); // Gold
+                      if (rank == 2) rankColor = const Color(0xFFC0C0C0); // Silver
+                      if (rank == 3) rankColor = const Color(0xFFCD7F32); // Bronze
+    
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: isMe ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.02),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isMe ? theme.colorScheme.primary.withOpacity(0.5) : Colors.white10,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
                           children: [
                             Text(
-                              'Congratulations, $myUsername!',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              '#$rank',
+                              style: TextStyle(
+                                color: rankColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                entry['username'],
+                                style: TextStyle(
+                                  color: isMe ? theme.colorScheme.primary : Colors.white,
+                                  fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
                             Text(
-                              'You placed #${myEntry['rank']} out of $contendersCount players',
-                              style: const TextStyle(color: Colors.white70, fontSize: 14),
+                              '${entry['score']} pts',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
                             ),
                           ],
                         ),
-                      ),
-                      Text(
-                        '${myEntry['score']} pts',
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
-            
-            const Text(
-              'LEADERBOARD STANDINGS',
-              style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: theme.colorScheme.surface,
+                  ),
+                  child: const Text('Back', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(height: 10),
-            
-            // Leaderboard list
-            Expanded(
-              child: ListView.builder(
-                itemCount: leaderboard.length,
-                itemBuilder: (ctx, index) {
-                  final entry = leaderboard[index];
-                  final isMe = entry['username'] == myUsername;
-                  final rank = entry['rank'];
-                  
-                  // Highlight top 3
-                  Color rankColor = Colors.white54;
-                  if (rank == 1) rankColor = const Color(0xFFFFD700); // Gold
-                  if (rank == 2) rankColor = const Color(0xFFC0C0C0); // Silver
-                  if (rank == 3) rankColor = const Color(0xFFCD7F32); // Bronze
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: isMe ? Colors.white.withOpacity(0.06) : Colors.white.withOpacity(0.02),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isMe ? theme.colorScheme.primary.withOpacity(0.5) : Colors.white10,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          '#$rank',
-                          style: TextStyle(
-                            color: rankColor,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            entry['username'],
-                            style: TextStyle(
-                              color: isMe ? theme.colorScheme.primary : Colors.white,
-                              fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${entry['score']} pts',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                backgroundColor: theme.colorScheme.surface,
-              ),
-              child: const Text('Back to Contests', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
+          ),
         ),
       ),
     );
