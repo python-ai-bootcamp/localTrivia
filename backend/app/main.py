@@ -38,3 +38,7 @@ app.include_router(ws.router)
 @app.get("/")
 def read_root():
     return {"status": "ok", "service": "Local Trivia App Backend"}
+
+@app.get("/status")
+def read_status():
+    return {"status": "up"}
