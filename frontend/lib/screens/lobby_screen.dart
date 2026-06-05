@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import 'question_screen.dart';
@@ -27,9 +28,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Timer? _lobbyTimer;
   Duration _timeLeft = Duration.zero;
 
+  // Audio Player
+  late final AudioPlayer _beepPlayer;
+  int _lastLobbyBeepSecond = -1;
+
   @override
   void initState() {
     super.initState();
+    _beepPlayer = AudioPlayer();
+    _beepPlayer.setSource(AssetSource('sounds/beep.mp3'));
     _initLobby();
   }
 
@@ -37,6 +44,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   void dispose() {
     _lobbyTimer?.cancel();
     _wsSubscription?.cancel();
+    _beepPlayer.dispose();
     if (!_navigatingToGame) {
       _wsService?.close();
     }
@@ -72,6 +80,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
         if (event == 'CONTEST_STARTED' || event == 'QUESTION_START') {
           _wsSubscription?.cancel(); // Yield control of events to QuestionScreen
           _navigatingToGame = true;
+          try {
+            _beepPlayer.stop();
+          } catch (_) {}
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (_) => QuestionScreen(
@@ -123,7 +134,26 @@ class _LobbyScreenState extends State<LobbyScreen> {
       setState(() {
         _timeLeft = diff;
       });
+
+      // Play beeps for the last 5 seconds (5, 4, 3, 2, 1) before the game starts
+      final secondsLeft = diff.inSeconds;
+      if (secondsLeft <= 5 && secondsLeft > 0) {
+        if (_lastLobbyBeepSecond != secondsLeft) {
+          _lastLobbyBeepSecond = secondsLeft;
+          _playLobbyBeep();
+        }
+      }
     }
+  }
+
+  Future<void> _playLobbyBeep() async {
+    try {
+      await _beepPlayer.stop();
+      await _beepPlayer.play(
+        AssetSource('sounds/beep.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (_) {}
   }
 
   String _formatDuration(Duration d) {

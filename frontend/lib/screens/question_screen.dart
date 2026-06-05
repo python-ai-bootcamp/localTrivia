@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import 'lobby_screen.dart';
@@ -51,9 +52,34 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   DateTime? _questionStartTime;
   AnimationController? _timerController;
 
+  // Audio Players
+  late final AudioPlayer _beepPlayer;
+  late final AudioPlayer _correctPlayer;
+  late final AudioPlayer _applausePlayer;
+  late final AudioPlayer _wrongPlayer;
+
   @override
   void initState() {
     super.initState();
+    _beepPlayer = AudioPlayer();
+    _correctPlayer = AudioPlayer();
+    _applausePlayer = AudioPlayer();
+    _wrongPlayer = AudioPlayer();
+
+    // Configure global audio context to allow mixing multiple players
+    try {
+      final audioContext = AudioContextConfig(
+        focus: AudioContextConfigFocus.mixWithOthers,
+      ).build();
+      AudioPlayer.global.setAudioContext(audioContext);
+    } catch (_) {}
+
+    // Pre-set sources to decrease latency
+    _beepPlayer.setSource(AssetSource('sounds/beep.mp3'));
+    _correctPlayer.setSource(AssetSource('sounds/correct.mp3'));
+    _applausePlayer.setSource(AssetSource('sounds/applause.mp3'));
+    _wrongPlayer.setSource(AssetSource('sounds/wrong.mp3'));
+
     _listenToEvents();
     _handleQuestionStart(widget.initialEvent['data']);
   }
@@ -63,8 +89,51 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
     _wsSubscription?.cancel();
     _bufferTimer?.cancel();
     _timerController?.dispose();
+    _beepPlayer.dispose();
+    _correctPlayer.dispose();
+    _applausePlayer.dispose();
+    _wrongPlayer.dispose();
     widget.wsService.close();
     super.dispose();
+  }
+
+  Future<void> _playBeep() async {
+    try {
+      await _beepPlayer.stop();
+      await _beepPlayer.play(
+        AssetSource('sounds/beep.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _playCorrectSound() async {
+    try {
+      await _correctPlayer.stop();
+      await _applausePlayer.stop();
+      
+      await _correctPlayer.play(
+        AssetSource('sounds/correct.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+      
+      await Future.delayed(const Duration(milliseconds: 150));
+      
+      await _applausePlayer.play(
+        AssetSource('sounds/applause.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _playWrongSound() async {
+    try {
+      await _wrongPlayer.stop();
+      await _wrongPlayer.play(
+        AssetSource('sounds/wrong.mp3'),
+        mode: PlayerMode.lowLatency,
+      );
+    } catch (_) {}
   }
 
   void _listenToEvents() {
@@ -85,6 +154,13 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   void _handleQuestionStart(Map<String, dynamic> data) {
     _bufferTimer?.cancel();
     _timerController?.dispose();
+
+    try {
+      _beepPlayer.stop();
+      _correctPlayer.stop();
+      _applausePlayer.stop();
+      _wrongPlayer.stop();
+    } catch (_) {}
 
     setState(() {
       _questionIndex = data['questionIndex'] ?? 0;
@@ -111,6 +187,20 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       vsync: this,
       duration: Duration(seconds: _timeLimit),
     );
+
+    // Play stressful countdown beeps during the last 5 seconds
+    int lastBeepSecond = -1;
+    _timerController!.addListener(() {
+      if (!mounted || _hasAnswered || _inBuffer) return;
+      final elapsed = (_timerController!.value * _timeLimit).floor();
+      final remaining = _timeLimit - elapsed;
+      if (remaining <= 5 && remaining > 0) {
+        if (lastBeepSecond != remaining) {
+          lastBeepSecond = remaining;
+          _playBeep();
+        }
+      }
+    });
     
     _timerController!.forward(from: 0.0).then((_) {
       if (mounted && !_hasAnswered) {
@@ -126,6 +216,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       _isCorrect = false;
       _scoreEarned = 0.0;
     });
+    _playWrongSound();
   }
 
   Future<void> _submitAnswer(int index) async {
@@ -152,6 +243,12 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
         _scoreEarned = (result['score'] as num).toDouble();
         _correctIndex = result['correctOptionIndex'] as int?;
       });
+
+      if (_isCorrect) {
+        _playCorrectSound();
+      } else {
+        _playWrongSound();
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Submission error: $e'), backgroundColor: Colors.red),
@@ -162,13 +259,25 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   void _handleQuestionEnd(Map<String, dynamic> data) {
     _timerController?.dispose();
     
+    final wasNotAnswered = !_hasAnswered;
+
     setState(() {
       _inBuffer = true;
       _correctOptionIndex = data['correctOptionIndex'] ?? 0;
       _correctIndex = _correctOptionIndex;
       _midLeaderboard = data['leaderboard'] ?? [];
       _bufferSecondsLeft = 5; 
+      if (wasNotAnswered) {
+        _hasAnswered = true;
+        _isTimeout = true;
+        _isCorrect = false;
+        _scoreEarned = 0.0;
+      }
     });
+
+    if (wasNotAnswered) {
+      _playWrongSound();
+    }
 
     _timerController = AnimationController(
       vsync: this,
