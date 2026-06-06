@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import '../services/websocket_service.dart';
 import 'lobby_screen.dart';
 
@@ -40,6 +41,12 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
   bool _isCorrect = false;
   double _scoreEarned = 0.0;
   bool _isTimeout = false;
+
+  // Pending correctness state (to be revealed after timer ends)
+  bool? _pendingIsCorrect;
+  double? _pendingScoreEarned;
+  int? _pendingCorrectIndex;
+  double? _frozenWorth;
   
   // Buffer state
   bool _inBuffer = false;
@@ -179,6 +186,11 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       _isTimeout = false;
       _inBuffer = false;
       
+      _pendingIsCorrect = null;
+      _pendingScoreEarned = null;
+      _pendingCorrectIndex = null;
+      _frozenWorth = null;
+      
       _questionStartTime = DateTime.now();
     });
 
@@ -188,10 +200,10 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       duration: Duration(seconds: _timeLimit),
     );
 
-    // Play stressful countdown beeps during the last 5 seconds
+    // Play stressful countdown beeps during the last 5 seconds (even if answered)
     int lastBeepSecond = -1;
     _timerController!.addListener(() {
-      if (!mounted || _hasAnswered || _inBuffer) return;
+      if (!mounted || _inBuffer) return;
       final elapsed = (_timerController!.value * _timeLimit).floor();
       final remaining = _timeLimit - elapsed;
       if (remaining <= 5 && remaining > 0) {
@@ -216,7 +228,6 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       _isCorrect = false;
       _scoreEarned = 0.0;
     });
-    _playWrongSound();
   }
 
   Future<void> _submitAnswer(int index) async {
@@ -228,6 +239,11 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
     setState(() {
       _selectedIndex = index;
       _hasAnswered = true;
+      if (_timerController != null) {
+        _frozenWorth = _initialScore * (1.0 - _timerController!.value);
+      } else {
+        _frozenWorth = _initialScore.toDouble();
+      }
     });
 
     try {
@@ -238,17 +254,9 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
         timeTakenMs,
       );
 
-      setState(() {
-        _isCorrect = result['isCorrect'] ?? false;
-        _scoreEarned = (result['score'] as num).toDouble();
-        _correctIndex = result['correctOptionIndex'] as int?;
-      });
-
-      if (_isCorrect) {
-        _playCorrectSound();
-      } else {
-        _playWrongSound();
-      }
+      _pendingIsCorrect = result['isCorrect'] ?? false;
+      _pendingScoreEarned = (result['score'] as num).toDouble();
+      _pendingCorrectIndex = result['correctOptionIndex'] as int?;
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Submission error: $e'), backgroundColor: Colors.red),
@@ -272,10 +280,15 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
         _isTimeout = true;
         _isCorrect = false;
         _scoreEarned = 0.0;
+      } else {
+        _isCorrect = _pendingIsCorrect ?? false;
+        _scoreEarned = _pendingScoreEarned ?? 0.0;
       }
     });
 
-    if (wasNotAnswered) {
+    if (_isCorrect) {
+      _playCorrectSound();
+    } else {
       _playWrongSound();
     }
 
@@ -328,7 +341,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Question ${_questionIndex + 1}'),
+        title: Text(I18n.t('bb7acdf1', {'index': (_questionIndex + 1).toString()})),
         automaticallyImplyLeading: false,
         actions: [
           Padding(
@@ -342,25 +355,39 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                         if (_inBuffer) {
                           currentWorth = _scoreEarned;
                         } else if (_hasAnswered) {
-                          if (_correctIndex != null) {
-                            currentWorth = _scoreEarned;
-                          } else {
-                            currentWorth = _initialScore * (1.0 - _timerController!.value);
-                          }
+                          currentWorth = _frozenWorth ?? 0.0;
                         } else if (_isTimeout) {
                           currentWorth = 0.0;
                         } else {
                           currentWorth = _initialScore * (1.0 - _timerController!.value);
                         }
 
+                        if (_inBuffer) {
+                          if (_isCorrect) {
+                            return Text(
+                              '+${currentWorth.toStringAsFixed(0)} ${I18n.t('7ab3f2cd')}',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            );
+                          } else {
+                            return Text(
+                              '0 ${I18n.t('7ab3f2cd')}',
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            );
+                          }
+                        }
+
                         return Text(
-                          _inBuffer
-                              ? (_isCorrect ? '+${_scoreEarned.toStringAsFixed(0)} pts' : '0 pts')
-                              : 'Worth: ${currentWorth.toStringAsFixed(0)} pts',
+                          I18n.t('8f3cd9ba', {'score': currentWorth.toStringAsFixed(0)}),
                           style: TextStyle(
-                            color: _inBuffer || _hasAnswered
-                                ? (_isCorrect ? Colors.green : theme.colorScheme.error)
-                                : theme.colorScheme.secondary,
+                            color: theme.colorScheme.secondary,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -368,7 +395,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                       },
                     )
                   : Text(
-                      'Worth: $_initialScore pts',
+                      I18n.t('8f3cd9ba', {'score': _initialScore.toString()}),
                       style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold),
                     ),
             ),
@@ -390,50 +417,41 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                       Container(
                         alignment: Alignment.center,
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          '${_questionIndex == _totalQuestions - 1 ? "FINAL RESULTS" : "NEXT QUESTION"} IN $_bufferSecondsLeft...',
-                          style: TextStyle(
-                            color: theme.colorScheme.secondary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                          ),
+                        child: Builder(
+                          builder: (context) {
+                            final isFinal = _questionIndex == _totalQuestions - 1;
+                            final eventText = isFinal ? I18n.t('da8cb9df') : I18n.t('7ab9cdfe');
+                            return Text(
+                              '$eventText ${I18n.t('aa9bcf12', {'seconds': _bufferSecondsLeft.toString()})}',
+                              style: TextStyle(
+                                color: theme.colorScheme.secondary,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
+                            );
+                          }
                         ),
                       )
                     else if (_timerController != null)
                       AnimatedBuilder(
                         animation: _timerController!,
                         builder: (context, child) {
-                          if (_hasAnswered) {
-                            final secondsLeft = getSecondsToNextQuestion();
-                            final isFinalQuestion = _questionIndex == _totalQuestions - 1;
-                            return Container(
-                              alignment: Alignment.center,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                '${isFinalQuestion ? "FINAL RESULTS" : "NEXT QUESTION"} IN $secondsLeft...',
-                                style: TextStyle(
-                                  color: theme.colorScheme.secondary,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            );
-                          }
-
                           final double val = 1.0 - _timerController!.value;
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: val,
-                              backgroundColor: Colors.white10,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                val < 0.25 
-                                    ? theme.colorScheme.error 
-                                    : theme.colorScheme.primary,
+                          return Opacity(
+                            opacity: _hasAnswered ? 0.4 : 1.0,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: val,
+                                backgroundColor: Colors.white10,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  val < 0.25 
+                                      ? theme.colorScheme.error 
+                                      : theme.colorScheme.primary,
+                                ),
+                                minHeight: 8,
                               ),
-                              minHeight: 8,
                             ),
                           );
                         },
@@ -454,8 +472,8 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                           const SizedBox(width: 8),
                           Text(
                             _isCorrect 
-                                ? 'CORRECT! +${_scoreEarned.toStringAsFixed(0)} pts' 
-                                : (_isTimeout ? 'TIME OUT!' : 'INCORRECT!'),
+                                ? I18n.t('8acfa290', {'score': _scoreEarned.toStringAsFixed(0)}) 
+                                : (_isTimeout ? I18n.t('df7bc89d') : I18n.t('6ab8d9ca')),
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -512,7 +530,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                         }
                         
                         if (!isPending) {
-                          final isThisOptionCorrect = index == _correctIndex || (_inBuffer && index == _correctOptionIndex);
+                          final isThisOptionCorrect = index == _correctIndex;
                           if (isThisOptionCorrect) {
                             if (!_isCorrect) {
                               buttonColor = Colors.green.withOpacity(0.20);
@@ -581,9 +599,9 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
       mainAxisSize: MainAxisSize.min,
       children: [
         const Divider(color: Colors.white10, height: 24),
-        const Text(
-          'STANDINGS SNAPSHOT',
-          style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+        Text(
+          I18n.t('1fa9cdbe'),
+          style: const TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 12),
@@ -604,7 +622,7 @@ class _QuestionScreenState extends State<QuestionScreen> with TickerProviderStat
                   '#${entry['rank']} ${entry['username']}',
                   style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal),
                 ),
-                Text('${entry['score']} pts', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('${entry['score']} ${I18n.t('7ab3f2cd')}', style: const TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           );

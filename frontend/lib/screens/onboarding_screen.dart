@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import 'contests_tab.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -39,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       } else {
         final username = _usernameController.text.trim();
         if (username.isEmpty) {
-          throw 'Username cannot be empty';
+          throw I18n.t('8ab5c21f');
         }
         final success = await ApiService.register(username);
         if (success) {
@@ -86,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'LOCAL TRIVIA',
+                  I18n.t('bca96b99').toUpperCase(),
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
@@ -97,8 +98,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 const SizedBox(height: 8),
                 Text(
                   _isImportMode
-                      ? 'Enter your recovery key key to import your profile'
-                      : 'Join real-time local trivia contests with your neighborhood',
+                      ? I18n.t('ef72fbc0')
+                      : I18n.t('2a31d9fc'),
                   style: const TextStyle(color: Colors.white54, fontSize: 15),
                   textAlign: TextAlign.center,
                 ),
@@ -109,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   TextField(
                     controller: _usernameController,
                     decoration: InputDecoration(
-                      labelText: 'Choose Username',
+                      labelText: I18n.t('4bc9df12'),
                       prefixIcon: const Icon(Icons.person_outline),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.04),
@@ -128,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   TextField(
                     controller: _keyController,
                     decoration: InputDecoration(
-                      labelText: 'Account Recovery Key',
+                      labelText: I18n.t('cf2f9747'),
                       prefixIcon: const Icon(Icons.vpn_key_outlined),
                       filled: true,
                       fillColor: Colors.white.withOpacity(0.04),
@@ -174,7 +175,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : Text(
-                          _isImportMode ? 'Import Account' : 'Create Profile',
+                          _isImportMode ? I18n.t('7a8db9c2') : I18n.t('91a0c4f8'),
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                 ),
@@ -191,8 +192,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   },
                   child: Text(
                     _isImportMode
-                        ? 'Back to Create Profile'
-                        : 'I have a Recovery Key',
+                        ? I18n.t('e01cf3b1')
+                        : I18n.t('f18cd99d'),
                     style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -204,3 +205,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+

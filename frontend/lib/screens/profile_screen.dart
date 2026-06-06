@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import 'onboarding_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -24,8 +25,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _copyKey() {
     Clipboard.setData(ClipboardData(text: ApiService.token));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Recovery key copied to clipboard!'),
+      SnackBar(
+        content: Text(I18n.t('1fae1363')),
         backgroundColor: Colors.green,
       ),
     );
@@ -44,8 +45,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final success = await ApiService.importKey(key);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account imported successfully!'),
+          SnackBar(
+            content: Text(I18n.t('f2a96b78')),
             backgroundColor: Colors.green,
           ),
         );
@@ -66,14 +67,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text(
-          'Are you sure you want to sign out? Make sure you have backed up your Recovery Key first to prevent losing account progress.',
-        ),
+        title: Text(I18n.t('ab30fd2a')),
+        content: Text(I18n.t('99c0da2f')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(I18n.t('ea3cd44f')),
           ),
           TextButton(
             onPressed: () async {
@@ -84,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 (route) => false,
               );
             },
-            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+            child: Text(I18n.t('012ab6f2'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -97,7 +96,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: Text(I18n.t('4668b556')),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -119,11 +118,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  const Text('Registered Contender', style: TextStyle(color: Colors.white38)),
+                  Text(I18n.t('d19760df'), style: const TextStyle(color: Colors.white38)),
                 ],
               ),
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 24),
+
+            // Language Selection Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.language, color: theme.colorScheme.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          I18n.t('f2bcda81'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: I18n.languageCode,
+                      dropdownColor: theme.colorScheme.surface,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.04),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.white10),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(color: Colors.white10),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'he', child: Text('עברית (Hebrew)')),
+                        DropdownMenuItem(value: 'en', child: Text('English (English)')),
+                        DropdownMenuItem(value: 'ru', child: Text('Русский (Russian)')),
+                        DropdownMenuItem(value: 'ar', child: Text('العربية (Arabic)')),
+                        DropdownMenuItem(value: 'am', child: Text('አማርኛ (Amharic)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          I18n.setLanguage(val);
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
 
             // Recovery key section
             Card(
@@ -136,16 +188,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Icon(Icons.vpn_key_outlined, color: theme.colorScheme.primary, size: 20),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Account Recovery Key',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        Text(
+                          I18n.t('cf2f9747'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Save this key somewhere safe. It acts as your account backup and is required to restore your profile on a new device.',
-                      style: TextStyle(color: Colors.white38, fontSize: 13, height: 1.4),
+                    Text(
+                      I18n.t('5f7244eb'),
+                      style: const TextStyle(color: Colors.white38, fontSize: 13, height: 1.4),
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -167,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           IconButton(
                             icon: const Icon(Icons.copy, size: 18),
                             onPressed: _copyKey,
-                            tooltip: 'Copy key',
+                            tooltip: I18n.t('e0b4a45a'),
                           ),
                         ],
                       ),
@@ -185,13 +237,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.download_outlined, color: Colors.white38, size: 20),
                         const SizedBox(width: 8),
-                        const Text(
-                          'Import Existing Profile',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        Text(
+                          I18n.t('a7d2db3e'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ],
                     ),
@@ -199,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     TextField(
                       controller: _keyController,
                       decoration: InputDecoration(
-                        labelText: 'Recovery Key URL/Token',
+                        labelText: I18n.t('c5be7592'),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.04),
                         border: OutlineInputBorder(
@@ -235,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               width: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Import Key'),
+                          : Text(I18n.t('129994c9')),
                     ),
                   ],
                 ),
@@ -255,7 +307,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              child: Text(I18n.t('012ab6f2'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ],
         ),
@@ -263,3 +315,4 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+

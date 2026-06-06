@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import 'contest_detail_screen.dart';
 import 'profile_screen.dart';
 import 'question_screen.dart'; // To handle LIVE taps if user wants to re-enter
@@ -39,8 +40,8 @@ class _ContestsTabState extends State<ContestsTab> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Contest added from your QR scan!'),
+            SnackBar(
+              content: Text(I18n.t('21fb88fa')),
               backgroundColor: Colors.green,
             ),
           );
@@ -103,7 +104,7 @@ class _ContestsTabState extends State<ContestsTab> {
         child: Column(
           children: [
             AppBar(
-              title: const Text('Scan Contest QR Code'),
+              title: Text(I18n.t('bb523c91')),
               leading: IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(ctx),
@@ -129,8 +130,8 @@ class _ContestsTabState extends State<ContestsTab> {
                         await ApiService.addContest(qrUrl);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Contest added successfully!'),
+                            SnackBar(
+                              content: Text(I18n.t('8f30c6a8')),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -149,7 +150,7 @@ class _ContestsTabState extends State<ContestsTab> {
                         }
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Failed to add contest: $e'),
+                            content: Text(I18n.t('40f1a92e', {'error': e.toString()})),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -188,16 +189,16 @@ class _ContestsTabState extends State<ContestsTab> {
   String _getStatusLabel(String status) {
     switch (status) {
       case 'LIVE':
-        return 'LIVE PLAY';
+        return I18n.t('d85c8e03');
       case 'ENLISTED':
-        return 'REGISTERED';
+        return I18n.t('62b9a7f3');
       case 'ADDED':
-        return 'DISCOVERED';
+        return I18n.t('5c7ab890');
       case 'COMPLETED':
-        return 'FINISHED';
+        return I18n.t('88dcf19e');
       case 'MISSED':
       default:
-        return 'MISSED';
+        return I18n.t('4a8db9c1');
     }
   }
 
@@ -207,7 +208,7 @@ class _ContestsTabState extends State<ContestsTab> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Contests'),
+        title: Text(I18n.t('cc08a12b')),
         actions: [
           IconButton(
             icon: const Icon(Icons.account_circle_outlined),
@@ -235,7 +236,7 @@ class _ContestsTabState extends State<ContestsTab> {
                       Center(
                         child: ElevatedButton(
                           onPressed: _fetchContests,
-                          child: const Text('Retry'),
+                          child: Text(I18n.t('7a0b5c1a')),
                         ),
                       )
                     ],
@@ -245,13 +246,13 @@ class _ContestsTabState extends State<ContestsTab> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                          const Center(
+                          Center(
                             child: Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 40.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 40.0),
                               child: Text(
-                                'No contests added yet.\nScan a contest QR code to get started!',
+                                I18n.t('bc8da92f'),
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white38, fontSize: 16, height: 1.5),
+                                style: const TextStyle(color: Colors.white38, fontSize: 16, height: 1.5),
                               ),
                             ),
                           ),
@@ -307,6 +308,7 @@ class _ContestsTabState extends State<ContestsTab> {
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                           decoration: BoxDecoration(
@@ -345,14 +347,14 @@ class _ContestsTabState extends State<ContestsTab> {
                                             const Icon(Icons.payments_outlined, size: 18, color: Colors.white38),
                                             const SizedBox(width: 8),
                                             Text(
-                                              'Entry Fee: \$$fee',
+                                              '${I18n.t('c2ab3df1')}: \$$fee',
                                               style: const TextStyle(color: Colors.white60, fontSize: 14),
                                             ),
                                           ],
                                         ),
                                         if (contest['prizePool'] > 0)
                                           Text(
-                                            'Pool: \$${contest['prizePool']}',
+                                            '${I18n.t('aa9cf12d')}: \$${contest['prizePool']}',
                                             style: TextStyle(
                                               color: theme.colorScheme.primary,
                                               fontWeight: FontWeight.bold,
@@ -372,10 +374,11 @@ class _ContestsTabState extends State<ContestsTab> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openScanner,
         icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Scan QR Code'),
+        label: Text(I18n.t('bb523c91')),
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: Colors.white,
       ),
     );
   }
 }
+

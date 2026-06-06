@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import '../services/websocket_service.dart';
 import 'question_screen.dart';
 import 'onboarding_screen.dart';
@@ -176,7 +177,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     if (_errorMessage.isNotEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Game Room')),
+        appBar: AppBar(title: Text(I18n.t('62ab9dc1'))),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -185,7 +186,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _initLobby,
-                child: const Text('Retry'),
+                child: Text(I18n.t('7a0b5c1a')),
               ),
             ],
           ),
@@ -201,7 +202,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Countdown Lobby'),
+        title: Text(I18n.t('c9f2a7db')),
       ),
       body: Center(
         child: Padding(
@@ -215,9 +216,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 color: theme.colorScheme.primary,
               ),
               const SizedBox(height: 24),
-              const Text(
-                'WAITING FOR START',
-                style: TextStyle(
+              Text(
+                I18n.t('8acda091'),
+                style: const TextStyle(
                   color: Colors.white38,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -245,24 +246,24 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Keep this screen open. You will be automatically redirected when live play starts.',
-                style: TextStyle(color: Colors.white30, fontSize: 13),
+              Text(
+                I18n.t('5f21bd9a'),
+                style: const TextStyle(color: Colors.white30, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Text(
-                    'WebSocket Channel Connected',
-                    style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+                    I18n.t('a1bc2b9d'),
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -292,7 +293,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Contest Standings'),
+          title: Text(I18n.t('ee3cb9da')),
           automaticallyImplyLeading: false,
         ),
         body: SafeArea(
@@ -316,19 +317,22 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Congratulations, $myUsername!',
+                                  I18n.t('a9f8b2cd', {'username': myUsername}),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'You placed #${myEntry['rank']} out of $contendersCount players',
+                                  I18n.t('d1fa8b2c', {
+                                    'rank': myEntry['rank'].toString(),
+                                    'total': contendersCount.toString()
+                                  }),
                                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                                 ),
                               ],
                             ),
                           ),
                           Text(
-                            '${myEntry['score']} pts',
+                            '${myEntry['score']} ${I18n.t('7ab3f2cd')}',
                             style: TextStyle(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.w900,
@@ -342,9 +346,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   const SizedBox(height: 20),
                 ],
                 
-                const Text(
-                  'LEADERBOARD STANDINGS',
-                  style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                Text(
+                  I18n.t('6abcf87d'),
+                  style: const TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
                 const SizedBox(height: 10),
                 
@@ -362,7 +366,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       if (rank == 1) rankColor = const Color(0xFFFFD700); // Gold
                       if (rank == 2) rankColor = const Color(0xFFC0C0C0); // Silver
                       if (rank == 3) rankColor = const Color(0xFFCD7F32); // Bronze
-    
+     
                       return Container(
                         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                         margin: const EdgeInsets.only(bottom: 10),
@@ -396,7 +400,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               ),
                             ),
                             Text(
-                              '${entry['score']} pts',
+                              '${entry['score']} ${I18n.t('7ab3f2cd')}',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
                             ),
                           ],
@@ -416,7 +420,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     backgroundColor: theme.colorScheme.surface,
                   ),
-                  child: const Text('Back', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(I18n.t('42ab8cd1'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -427,3 +431,4 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 }
+

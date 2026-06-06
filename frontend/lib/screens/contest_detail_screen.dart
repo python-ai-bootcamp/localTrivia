@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/i18n.dart';
 import 'lobby_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -104,8 +105,8 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
     try {
       await ApiService.enlistContest(widget.contestId);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Successfully registered and paid!'),
+        SnackBar(
+          content: Text(I18n.t('7da1c8fa')),
           backgroundColor: Colors.green,
         ),
       );
@@ -123,7 +124,7 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to register: $e'),
+          content: Text(I18n.t('bc9da7d1', {'error': e.toString()})),
           backgroundColor: Colors.red,
         ),
       );
@@ -135,14 +136,14 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
   }
 
   String _formatDuration(Duration d) {
-    if (d == Duration.zero) return 'Contest in progress / ended';
+    if (d == Duration.zero) return I18n.t('0a8db92c');
     final days = d.inDays;
     final hours = d.inHours.remainder(24).toString().padLeft(2, '0');
     final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
 
     if (days > 0) {
-      return '$days days, $hours:$minutes:$seconds';
+      return '$days ${I18n.t('ff80bc9d')}, $hours:$minutes:$seconds';
     }
     return '$hours:$minutes:$seconds';
   }
@@ -159,7 +160,7 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
 
     if (_errorMessage.isNotEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Contest Details')),
+        appBar: AppBar(title: Text(I18n.t('d7bc89f1'))),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -168,7 +169,7 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _fetchDetails,
-                child: const Text('Retry'),
+                child: Text(I18n.t('7a0b5c1a')),
               ),
             ],
           ),
@@ -177,8 +178,8 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
     }
 
     if (_contest == null) {
-      return const Scaffold(
-        body: Center(child: Text('No details found')),
+      return Scaffold(
+        body: Center(child: Text(I18n.t('b9cd8ea2'))),
       );
     }
 
@@ -191,7 +192,7 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contest Details'),
+        title: Text(I18n.t('d7bc89f1')),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -214,12 +215,12 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _buildDetailRow(Icons.payments_outlined, 'Entry Fee', '\$$fee'),
-                    _buildDetailRow(Icons.monetization_on_outlined, 'Prize Pool', '\$$prizePool'),
-                    _buildDetailRow(Icons.people_outline, 'Registered Players', '$contendersCount'),
+                    _buildDetailRow(Icons.payments_outlined, I18n.t('c2ab3df1'), '\$$fee'),
+                    _buildDetailRow(Icons.monetization_on_outlined, I18n.t('aa9cf12d'), '\$$prizePool'),
+                    _buildDetailRow(Icons.people_outline, I18n.t('1fa7db29'), '$contendersCount'),
                     _buildDetailRow(
                       Icons.calendar_month_outlined,
-                      'Start Date',
+                      I18n.t('0bc8da7e'),
                       '${startDate.day}/${startDate.month}/${startDate.year} @ ${startDate.hour.toString().padLeft(2, '0')}:${startDate.minute.toString().padLeft(2, '0')}',
                     ),
                   ],
@@ -236,9 +237,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      const Text(
-                        'COUNTDOWN TO START',
-                        style: TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 13),
+                      Text(
+                        I18n.t('df9a8b1c'),
+                        style: const TextStyle(color: Colors.white38, fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -273,9 +274,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text(
-                        'Enlist & Pay Entry Fee',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    : Text(
+                        I18n.t('7f8b9c1d'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
               ),
             ] else if (status == 'ENLISTED') ...[
@@ -295,9 +296,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text(
-                  'Enter Lobby',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  I18n.t('60f1c2b8'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ] else if (status == 'LIVE') ...[
@@ -317,9 +318,9 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text(
-                  'Enter Game Room',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  I18n.t('81c2b9da'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -351,3 +352,4 @@ class _ContestDetailScreenState extends State<ContestDetailScreen> {
     );
   }
 }
+
