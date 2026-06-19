@@ -9,10 +9,10 @@ show_help() {
     echo "Usage: $0 [options]"
     echo ""
     echo "Options:"
-    echo "  -d, --domain <domain>         Production domain name (required, e.g. zerodaybootcamp.xyz)"
-    echo "  -e, --email <email>           Certbot administrator email (required, e.g. python.ai.bootcamp@outlook.com)"
+    echo "  -d, --domain <domain>         Production domain name (required, e.g. notarealdomain.io)"
+    echo "  -e, --email <email>           Certbot administrator email (required, e.g. sheker.kolsheu@david.com)"
     echo "  -p, --project-dir <path>      Project directory path on host (optional, default: /opt/localTrivia)"
-    echo "  -g, --git-repo-url <url>      Git repository URL to clone (optional, default: https://github.com/your-username/local-trivia-platform.git)"
+    echo "  -g, --git-repo-url <url>      Git repository URL to clone (optional, default: https://github.com/python-ai-bootcamp/localTrivia.git)"
     echo "  -h, --help                    Show this help message"
     echo ""
     echo "Example:"
@@ -22,7 +22,7 @@ show_help() {
 
 # Default values
 PROJECT_DIR="/opt/localTrivia"
-GIT_REPO_URL="https://github.com/your-username/local-trivia-platform.git"
+GIT_REPO_URL="https://github.com/python-ai-bootcamp/localTrivia.git"
 DOMAIN=""
 EMAIL=""
 

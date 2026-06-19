@@ -9,10 +9,10 @@ set -e
 DOMAIN="__DOMAIN_PLACEHOLDER__"
 EMAIL="__EMAIL_PLACEHOLDER__"
 PROJECT_DIR="__PROJECT_DIR_PLACEHOLDER__"
-GIT_REPO_URL="https://github.com/your-username/local-trivia-platform.git"
+GIT_REPO_URL="__GIT_REPO_URL_PLACEHOLDER__"
 
 # 1. Check if placeholders have been configured
-if [[ "$DOMAIN" == *"PLACEHOLDER"* || "$EMAIL" == *"PLACEHOLDER"* || "$PROJECT_DIR" == *"PLACEHOLDER"* ]]; then
+if [[ "$DOMAIN" == *"PLACEHOLDER"* || "$EMAIL" == *"PLACEHOLDER"* || "$PROJECT_DIR" == *"PLACEHOLDER"* || "$GIT_REPO_URL" == *"PLACEHOLDER"* ]]; then
     echo "ERROR: The script is not configured yet."
     echo "Please run './configureDeploymentScript.sh -d <domain> -e <email> [-p <project_dir>] [-g <git_repo_url>]' first."
     exit 1
