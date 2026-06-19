@@ -41,10 +41,16 @@ run_install() {
 
     echo "2. Setting up project directory at $PROJECT_DIR..."
     sudo mkdir -p "$PROJECT_DIR"
-    sudo chown -R $USER:$USER "$PROJECT_DIR"
+    # Use SUDO_USER (original user) instead of USER (which is root under sudo)
+    sudo chown -R $SUDO_USER:$SUDO_USER "$PROJECT_DIR"
+
+    # Configure Git to trust the directory for both root and the original user
+    git config --global --add safe.directory "$PROJECT_DIR" || true
+    sudo -u $SUDO_USER git config --global --add safe.directory "$PROJECT_DIR" || true
 
     echo "3. Cloning repository..."
-    git clone "$GIT_REPO_URL" "$PROJECT_DIR"
+    # Clone as the original non-root user so the git tracking files belong to them
+    sudo -u $SUDO_USER git clone "$GIT_REPO_URL" "$PROJECT_DIR"
 
     echo "4. Creating production .env configuration..."
     cd "$PROJECT_DIR"
