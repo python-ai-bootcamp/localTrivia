@@ -5,9 +5,10 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'api_service.dart';
 
 class WebSocketService {
-  static const String wsUrl = kReleaseMode
-      ? 'wss://trivia.local/ws'
-      : 'ws://127.0.0.1:8080/ws';
+  static const String wsUrl = String.fromEnvironment(
+    'WS_URL',
+    defaultValue: 'ws://127.0.0.1:8080/ws',
+  );
 
   WebSocketChannel? _channel;
   final String contestId;

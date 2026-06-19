@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'services/api_service.dart';
@@ -5,8 +7,19 @@ import 'services/i18n.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/contests_tab.dart';
 
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kReleaseMode) {
+    HttpOverrides.global = MyHttpOverrides();
+  }
   await ApiService.init();
   await I18n.init();
   runApp(const MyApp());

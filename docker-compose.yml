@@ -1,17 +1,30 @@
 version: '3.8'
 
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/certbot:/var/www/certbot:ro
+    depends_on:
+      - web
+    restart: always
+
   web:
     build: ./backend
     ports:
-      - "8080:8000"
+      - "127.0.0.1:8080:8000"
     volumes:
       - ./backend:/workspace
     environment:
       - MONGO_URI=mongodb://db:27017/local_trivia
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=trivia_admin_secret_123
-      - BASE_URL=http://127.0.0.1:8080
+      - BASE_URL=${BASE_URL:-http://127.0.0.1:8080}
     depends_on:
       - db
     restart: always

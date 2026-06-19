@@ -7,9 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Use 10.0.2.2 for Android emulator loopback, localhost for iOS simulator
-  static const String baseUrl = kReleaseMode
-      ? 'https://trivia.local'
-      : 'http://127.0.0.1:8080'; 
+  static const String baseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: 'http://127.0.0.1:8080',
+  );
   static const _storage = FlutterSecureStorage();
 
   static String _token = '';
