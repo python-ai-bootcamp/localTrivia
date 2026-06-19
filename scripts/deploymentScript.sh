@@ -52,13 +52,21 @@ run_install() {
 
     echo "5. Generating SSL Certificates..."
     mkdir -p "$PROJECT_DIR/nginx/ssl"
+    
+    # If the domain already starts with www., only request a certificate for that subdomain.
+    # Otherwise, request certificates for both the root and the www. subdomain.
+    if [[ "$DOMAIN" == www.* ]]; then
+        CERT_DOMAINS="-d $DOMAIN"
+    else
+        CERT_DOMAINS="-d $DOMAIN -d www.$DOMAIN"
+    fi
+
     sudo certbot certonly --standalone \
-      -d "$DOMAIN" \
-      -d "www.$DOMAIN" \
+      $CERT_DOMAINS \
       --agree-tos \
       --email "$EMAIL" \
       --non-interactive \
-      --deploy-hook "cd $PROJECT_DIR && cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem nginx/ssl/ && cp /etc/letsencrypt/live/$DOMAIN/privkey.pem nginx/ssl/ && (podman ps --format '{{.Names}}' | grep -q nginx && podman-compose exec -T nginx nginx -s reload || true)"
+      --deploy-hook "/bin/bash -c 'cd $PROJECT_DIR && cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem nginx/ssl/ && cp /etc/letsencrypt/live/$DOMAIN/privkey.pem nginx/ssl/ && (podman ps --format \"{{.Names}}\" | grep -q nginx && podman-compose exec -T nginx nginx -s reload || true)'"
 
     echo "6. Configuring unprivileged port binding limits..."
     sudo sysctl net.ipv4.ip_unprivileged_port_start=80
